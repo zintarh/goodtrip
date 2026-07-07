@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { LoadingIcon } from "@/components/ui/LoadingIcon";
 
 export function LoginButton() {
-  const { login, isReady, isConnected, initError } = useWeb3Auth();
+  const { login, isReady, isConnected, initError, isDev } = useWeb3Auth();
   const router = useRouter();
 
   async function handleLogin() {
@@ -38,12 +38,25 @@ export function LoginButton() {
   }
 
   return (
-    <button
-      onClick={handleLogin}
-      disabled={!isReady}
-      className="btn-duo-primary w-full text-lg disabled:cursor-wait flex items-center justify-center"
-    >
-      {isReady ? "Play with Email / Google" : <LoadingIcon size={22} />}
-    </button>
+    <div className="space-y-2">
+      <button
+        onClick={handleLogin}
+        disabled={!isReady}
+        className="btn-duo-primary w-full text-lg disabled:cursor-wait flex items-center justify-center"
+      >
+        {!isReady ? (
+          <LoadingIcon size={22} />
+        ) : isDev ? (
+          "Enter (dev mode)"
+        ) : (
+          "Play with Email / Google"
+        )}
+      </button>
+      {isDev && (
+        <p className="text-xs text-gray-400 font-semibold">
+          Web3Auth not configured — using a local mock wallet. On-chain features are off.
+        </p>
+      )}
+    </div>
   );
 }

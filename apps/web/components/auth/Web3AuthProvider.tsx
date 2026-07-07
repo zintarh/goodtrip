@@ -22,6 +22,7 @@ interface Web3AuthContextValue {
   isReady: boolean;
   initError: unknown;
   addressError: string | null; // diagnostic only — surfaced in the UI while this keeps breaking
+  isDev: boolean; // true when running the no-Web3Auth local dev bypass (mock wallet, no on-chain)
   login: () => Promise<boolean>; // returns true if user completed auth
   logout: () => Promise<void>;
 }
@@ -33,6 +34,7 @@ const Web3AuthContext = createContext<Web3AuthContextValue>({
   isReady: false,
   initError: null,
   addressError: null,
+  isDev: false,
   login: async () => false,
   logout: async () => {},
 });
@@ -154,6 +156,7 @@ function InnerProvider({ children }: { children: React.ReactNode }) {
         isReady: isInitialized,
         initError,
         addressError,
+        isDev: false,
         login,
         logout: () => disconnect(),
       }}
@@ -163,10 +166,69 @@ function InnerProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+// ── Local dev bypass ─────────────────────────────────────────────────────────
+// When no Web3Auth clientId is configured (i.e. local dev without external
+// keys), the real SDK can't init and the login button is stuck disabled
+// forever. Instead of a dead app, hand out a mock wallet so the whole
+// off-chain game loop (Convex scoring, leaderboards, streaks) is playable.
+// walletClient stays null, so every on-chain path (score submission, hints,
+// staking, registration) gracefully no-ops — those need a real wallet + keys.
+// This branch is impossible in production because setting a clientId disables it.
+const DEV_ADDRESS =
+  (process.env.NEXT_PUBLIC_DEV_WALLET_ADDRESS as string | undefined) ??
+  "0x1111111111111111111111111111111111111111";
+const DEV_AUTH_KEY = "goodtrip-dev-auth";
+
+function DevAuthProvider({ children }: { children: React.ReactNode }) {
+  // This provider only renders client-side (Providers.tsx loads it with
+  // ssr:false), so reading localStorage in the initializer is safe and avoids
+  // a first-render flash that would bounce a "logged in" user off /play.
+  const [isConnected, setIsConnected] = useState<boolean>(
+    () => typeof window !== "undefined" && window.localStorage.getItem(DEV_AUTH_KEY) === "1"
+  );
+
+  useEffect(() => {
+    console.warn(
+      "[GoodTrip] Web3Auth not configured — running local DEV auth bypass with a mock wallet " +
+        `(${DEV_ADDRESS}). On-chain features are disabled. Set NEXT_PUBLIC_WEB3AUTH_CLIENT_ID to use real login.`
+    );
+  }, []);
+
+  async function login(): Promise<boolean> {
+    window.localStorage.setItem(DEV_AUTH_KEY, "1");
+    setIsConnected(true);
+    return true;
+  }
+
+  async function logout(): Promise<void> {
+    window.localStorage.removeItem(DEV_AUTH_KEY);
+    setIsConnected(false);
+  }
+
+  return (
+    <Web3AuthContext.Provider
+      value={{
+        address: isConnected ? DEV_ADDRESS : null,
+        walletClient: null,
+        isConnected,
+        isReady: true,
+        initError: null,
+        addressError: null,
+        isDev: true,
+        login,
+        logout,
+      }}
+    >
+      {children}
+    </Web3AuthContext.Provider>
+  );
+}
+
 export function Web3AuthProvider({ children }: { children: React.ReactNode }) {
-  // Skip Web3Auth entirely when no clientId is configured (avoids SDK throw in dev).
+  // No clientId → local dev bypass (mock wallet). Setting a clientId in the
+  // env switches to the real Web3Auth SDK and disables the bypass entirely.
   if (!process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID) {
-    return <>{children}</>;
+    return <DevAuthProvider>{children}</DevAuthProvider>;
   }
 
   return (

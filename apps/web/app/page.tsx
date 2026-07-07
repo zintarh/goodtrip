@@ -2,6 +2,7 @@
 
 import { LoginButton } from "@/components/auth/LoginButton";
 import { useWeb3Auth } from "@/components/auth/Web3AuthProvider";
+import { Logo } from "@/components/ui/Logo";
 
 export default function HomePage() {
   const { isReady } = useWeb3Auth();
@@ -10,11 +11,7 @@ export default function HomePage() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-white text-black px-4">
       <div className="max-w-md w-full text-center space-y-8">
         <div className="space-y-3">
-          <div
-            className={`mx-auto w-16 h-16 rounded-2xl bg-brand-purple border-b-4 border-brand-purpleDark ${
-              isReady ? "" : "animate-logo-pulse"
-            }`}
-          />
+          <Logo className="mx-auto w-16 h-16" pulse={!isReady} />
           <h1 className="text-5xl font-black tracking-tight">
             Good<span className="text-brand-purple">Trip</span>
           </h1>
